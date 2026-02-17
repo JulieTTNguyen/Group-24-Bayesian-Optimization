@@ -9,11 +9,12 @@ Group-24-Bayesian-Optimization
 
 # To activate .venv
 Mac: source .venv/bin/activate
+
 Other: .venv/scripts/activate
 
 # To add content
 1. Save file
-2. Stage file: git add [filename]
+2. Stage file: git add [filename] (or "git add ." to stage all changed files)
 3. Commit file: git commit -m "message"
 4. Push file: git push
 
