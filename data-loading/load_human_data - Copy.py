@@ -8,10 +8,14 @@ Script to load and reproduce human data
 import numpy as np
 import numba
 
-data = np.load('game_results_humans.npz')
+data = np.load('game_results/game_results_humans.npz')
 xyz = data['xyz']
 params = data['params']
 meta = data['meta']
+
+# print(xyz)
+# print(params)
+# print(meta)
 
 # Ground truth model in numpy
 def gmm_model(params, x, y):
@@ -33,7 +37,6 @@ import matplotlib.pyplot as plt
 # Plot the ground truth and data for the first game
 
 plt.figure()
-plt.subplot(1,2,1)
 x = np.linspace(0,1,100)
 grid = np.meshgrid(x,x)
 zgrid = gmm_model(params[0],grid[0],grid[1])
@@ -43,9 +46,11 @@ plt.title(f'Player: {meta[0,1]}, game ID: {meta[0,0]}')
 plt.plot(xyz[0,:,0],xyz[0,:,1],'kx-')
 best_i = np.argmax(xyz[0,:,2])
 plt.plot(xyz[0,best_i,0],xyz[0,best_i,1],'ro')
+plt.savefig("figs/ground_truth_and_data_first_game.jpg")
 
 
 #Plot mean curve for best performance, for all players, 4 first are fixed seeds
-plt.subplot(1,2,2)
+plt.figure()
 plt.plot(np.maximum.accumulate(xyz[:,:,2],axis=1).mean(0))
 plt.title('Mean evolution over trials')
+plt.savefig("figs/mean_curve_best_performance_all_players.jpg")
