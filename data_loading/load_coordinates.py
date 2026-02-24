@@ -11,5 +11,5 @@ def load_coordinates():
     return np.array(coordinates)  # Convert to array
 
 #save as csv 
-np.savetxt("coordinates.csv", load_coordinates().reshape(-1, 2), delimiter=",")
+np.savetxt("data_analysis/coordinates.csv", load_coordinates().reshape(-1, 2), delimiter=",")
 
