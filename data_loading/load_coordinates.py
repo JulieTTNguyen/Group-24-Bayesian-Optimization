@@ -2,7 +2,7 @@ from load_human_data import xyz
 import numpy as np
 
 def load_coordinates():
-    return xyz[:, :, :2]
+    return xyz
 
 coords = load_coordinates()
 
