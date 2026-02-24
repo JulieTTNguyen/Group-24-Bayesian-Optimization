@@ -93,17 +93,15 @@ def optimize_GP_hyperparams(Xtrain, ytrain, optimization_steps, learning_rate, m
     noise_variances = []
     iterations = optimization_steps
     for i in range(iterations):
-        assert noise_variance >= 0, f"ouch! {i, noise_variance}"
+        assert noise_variance.item() >= 0, f"ouch! {i, noise_variance}"
         optim.zero_grad()
+
+        jitter = 1e-6
+
         K = squared_exponential_kernel_torch(Xtrain_tensor, Xtrain_tensor, _lambda,
-                                                output_variance) + noise_variance * torch.eye(N)
-        
-        try:
-            L = torch.linalg.cholesky(K)
-        except RuntimeError:
-            K = K + 1e-4 * torch.eye(N)
-            L = torch.linalg.cholesky(K)
-            
+                                                output_variance) + (noise_variance+jitter) * torch.eye(N)
+        L = torch.linalg.cholesky(K)
+
         _alpha_temp = torch.linalg.solve_triangular(L, ytrain_tensor,upper=False)
         _alpha = torch.linalg.solve_triangular(L.t(),_alpha_temp,upper=True)
         nll = N / 2 * torch.log(torch.tensor(2 * np.pi)) + 0.5 * torch.matmul(ytrain_tensor.transpose(0, 1),
@@ -122,11 +120,9 @@ def optimize_GP_hyperparams(Xtrain, ytrain, optimization_steps, learning_rate, m
         noise_variances.append(noise_variance.item())
         optim.step()
 
-        # projected in the constraints (lengthscale and output variance should be positive)
-        for p in [_lambda, output_variance]:
-            p.data.clamp_(min=0.0000001)
-
-        noise_variance.data.clamp_(min=1e-5, max= 0.05)
-
+        # ---- constraints (after optimizer update) ----
+        _lambda.data.clamp_(min=1e-6)
+        output_variance.data.clamp_(min=1e-6)
+        noise_variance.data.clamp_(min=1e-5, max=0.05)
         
     return _lambda.item(), output_variance.item(), noise_variance.item()
