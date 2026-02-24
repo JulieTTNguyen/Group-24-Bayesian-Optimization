@@ -2,8 +2,11 @@ from load_human_data import xyz
 import numpy as np
 
 
-coordinates = []
 
+def load_coordinates():
+    coordinates = []
+    data = xyz  # Use the loaded xyz data
+    for pair in range(len(data)):
+        coordinates.append((data[pair,:, :2]))  # Extract x and y coordinates
+    return np.array(coordinates)  # Convert to array
 
-for pair in range(len(xyz)):    
-    coordinates.append((xyz[pair,:, :2]))  # Extract x and y coordinates
