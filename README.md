@@ -20,3 +20,4 @@ Other: .venv/scripts/activate
 
 # To get content
 1. git pull
+2. uv sync
