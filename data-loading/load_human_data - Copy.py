@@ -6,7 +6,6 @@ Script to load and reproduce human data
 """
 
 import numpy as np
-import numba
 
 data = np.load('game_results/game_results_humans.npz')
 xyz = data['xyz']
