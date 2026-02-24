@@ -33,7 +33,7 @@ def squared_exponential_kernel(x, y, lengthscale, variance):
     Function that computes the covariance matrix using a squared-exponential kernel
     '''
     # pair-wise distances, size: NxM
-    sqdist = cdist(x.reshape((-1, 1)), y.reshape((-1, 1)), 'sqeuclidean')
+    sqdist = cdist(x,y, 'sqeuclidean')
     # compute the kernel
     cov_matrix = variance * np.exp(-0.5 * sqdist * (1/lengthscale**2))  # NxM
     return cov_matrix
@@ -41,8 +41,9 @@ def squared_exponential_kernel(x, y, lengthscale, variance):
 
 def fit_predictive_GP(X, y, Xtest, lengthscale, kernel_variance, noise_variance):
 
-    X = np.array(X).reshape(-1, 1)
-    y = np.array(y)
+    X = np.array(X)
+    y = np.array(y).reshape(-1, 1)
+    Xtest = np.asarray(Xtest)
     K = squared_exponential_kernel(X, X, lengthscale, kernel_variance)
     L = np.linalg.cholesky(K + noise_variance * np.eye(len(X)))
 
@@ -63,14 +64,13 @@ def fit_predictive_GP(X, y, Xtest, lengthscale, kernel_variance, noise_variance)
 # It is not the best way to implement it, I suppose
 def optimize_GP_hyperparams(Xtrain, ytrain, optimization_steps, learning_rate, mean_prior, prior_std):  
     # we are re-defining the kernel because we need it in PyTorch
-    def squared_exponential_kernel_torch(x, y, _lambda, variance):
-        x = x.squeeze(1).expand(x.size(0), y.size(0))
-        y = y.squeeze(0).expand(x.size(0), y.size(0))
-        sqdist = torch.pow(x - y, 2)
-        k = variance * torch.exp(-0.5 * sqdist * (1/_lambda**2))  # NxM
-        return k
+    def squared_exponential_kernel_torch(x, y, lengthscale, variance):
+        x_sq = torch.sum(x**2, dim=1, keepdim=True)
+        y_sq = torch.sum(y**2, dim=1, keepdim=True).T
+        sqdist = x_sq + y_sq - 2 * x @ y.T
+        return variance * torch.exp(-0.5 * sqdist / lengthscale**2)
 
-    X = np.array(Xtrain).reshape(-1,1)
+    X = np.array(Xtrain)
     y = np.array(ytrain).reshape(-1,1)
     N = len(X)
 
@@ -98,7 +98,12 @@ def optimize_GP_hyperparams(Xtrain, ytrain, optimization_steps, learning_rate, m
         K = squared_exponential_kernel_torch(Xtrain_tensor, Xtrain_tensor, _lambda,
                                                 output_variance) + noise_variance * torch.eye(N)
         
-        L = torch.linalg.cholesky(K)
+        try:
+            L = torch.linalg.cholesky(K)
+        except RuntimeError:
+            K = K + 1e-4 * torch.eye(N)
+            L = torch.linalg.cholesky(K)
+            
         _alpha_temp = torch.linalg.solve_triangular(L, ytrain_tensor,upper=False)
         _alpha = torch.linalg.solve_triangular(L.t(),_alpha_temp,upper=True)
         nll = N / 2 * torch.log(torch.tensor(2 * np.pi)) + 0.5 * torch.matmul(ytrain_tensor.transpose(0, 1),
