@@ -10,3 +10,6 @@ def load_coordinates():
         coordinates.append((data[pair,:, :2]))  # Extract x and y coordinates
     return np.array(coordinates)  # Convert to array
 
+#save as csv 
+np.savetxt("coordinates.csv", load_coordinates().reshape(-1, 2), delimiter=",")
+
