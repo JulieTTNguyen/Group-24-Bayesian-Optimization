@@ -7,9 +7,9 @@ np.random.seed(32)
 project_root = Path.cwd().parent
 sys.path.append(str(project_root))
 
-from BayesianOptimization.BO_functions import probability_of_improvement, expected_improvement, GP_UCB_original, squared_exponential_kernel, fit_predictive_GP, optimize_GP_hyperparams
+from BO_functions import probability_of_improvement, expected_improvement, GP_UCB_original, squared_exponential_kernel, fit_predictive_GP, optimize_GP_hyperparams
 
-data = np.load('../game_results/game_results_humans.npz')
+data = np.load('game_results/game_results_humans.npz')
 xyz = data['xyz']
 params = data['params']
 meta = data['meta']
@@ -53,87 +53,95 @@ def f_objective(point):
 prior_mean = 0 
 prior_std = 5
 betas = [0.01, 0.1, 0.3, 1, 2, 5, 10, 20, 50, 100] # for softmax temperature
-xis = [0, 0.001, 0.01, 0.05, 0.1] # for EI and PI
+xis = [0, 0.001, 0.01, 0.05, 0.1,0.5] # for EI and PI
 kappas = [0.1, 0.3, 0.5, 1, 2, 5] # for UCB
 
 xi = 0.0001        # for EI and PI
 kappa = 0.5      # for UCB
     
-results = []
+final_results={}
 
-for i, person in enumerate(xyz[:20]):
-    # First 4 points
-    print(f"Running person {i}")
-    x0 = [[x0[0],x0[1]] for x0 in person[:4]]
-    objective = -gmm_model(params[i], xx, yy)            
-    X_sample =  x0
-    y_sample = [f_objective((xy[0],xy[1])) for xy in x0]
-    current_best = np.max(y_sample)
-
-    for k, point in enumerate(person[4:19]):
-        lengthscale, output_variance, noise_variance = optimize_GP_hyperparams(X_sample, y_sample, 500, 5e-4, prior_mean, prior_std)
-        mu, covariance = fit_predictive_GP(X_sample, y_sample, Xtest, lengthscale, output_variance, noise_variance)
-        std = np.sqrt(np.diag(covariance))
-
-        acquisition_values_pi = probability_of_improvement(current_best,  mu.flatten(), std, xi)
-        acquisition_values_ei = expected_improvement(current_best,  mu.flatten(), std, xi)
-        acquisition_values_gp_ucb = GP_UCB_original(mu.flatten(), std, kappa)
-
-        beta = 5.0   # try different values later (or loop over betas)
-
-        xh, yh = float(point[0]), float(point[1])
-        idx_h = xy_to_flat_index(xh, yh)
-
-        P_pi  = softmax(beta * acquisition_values_pi)
-        P_ei  = softmax(beta * acquisition_values_ei)
-        P_ucb = softmax(beta * acquisition_values_gp_ucb)
-
-        logp_pi  = float(np.log(P_pi[idx_h]  + 1e-12))
-        logp_ei  = float(np.log(P_ei[idx_h]  + 1e-12))
-        logp_ucb = float(np.log(P_ucb[idx_h] + 1e-12))
-
-        # BO-optimal points for each acquisition
-        idx_PI  = np.argmax(acquisition_values_pi)
-        idx_EI  = np.argmax(acquisition_values_ei)
-        idx_UCB = np.argmax(acquisition_values_gp_ucb)
-
-        xt_PI  = Xtest[idx_PI]
-        xt_EI  = Xtest[idx_EI]
-        xt_UCB = Xtest[idx_UCB]
-
-        results.append({
-            "person": int(i),
-            "step": int(k),
-            "beta": float(beta),
-
-            "human_xy": [xh, yh],
-            "human_z": float(point[2]),
-            "idx_h": int(idx_h),
-
-            "bo_PI_xy": xt_PI.tolist(),
-            "bo_EI_xy": xt_EI.tolist(),
-            "bo_UCB_xy": xt_UCB.tolist(),
-
-            "logp_PI": logp_pi,
-            "logp_EI": logp_ei,
-            "logp_UCB": logp_ucb,
-
-            "current_best": float(current_best),
-        })
-
-        X_sample.append(list(point[:2]))
-        y_sample.append(point[2])
+for xi,kappa in zip(xis,kappas):
+    results = []
+    for i, person in enumerate(xyz[:5]):
+        # First 4 points
+        print(f"Running person {i}")
+        x0 = [[x0[0],x0[1]] for x0 in person[:4]]
+        objective = -gmm_model(params[i], xx, yy)            
+        X_sample =  x0
+        y_sample = [f_objective((xy[0],xy[1])) for xy in x0]
         current_best = np.max(y_sample)
 
-# Sum and average log probabilities
-T = len(results)
+        for k, point in enumerate(person[4:19]):
+            lengthscale, output_variance, noise_variance = optimize_GP_hyperparams(X_sample, y_sample, 500, 5e-4, prior_mean, prior_std)
+            mu, covariance = fit_predictive_GP(X_sample, y_sample, Xtest, lengthscale, output_variance, noise_variance)
+            std = np.sqrt(np.diag(covariance))
 
-ll_EI = sum(r["logp_EI"] for r in results) / T
-ll_PI = sum(r["logp_PI"] for r in results) / T
-ll_UCB = sum(r["logp_UCB"] for r in results) / T
-baseline = np.log(1/10000)
+            acquisition_values_pi = probability_of_improvement(current_best,  mu.flatten(), std, xi)
+            acquisition_values_ei = expected_improvement(current_best,  mu.flatten(), std, xi)
+            acquisition_values_gp_ucb = GP_UCB_original(mu.flatten(), std, kappa)
 
-print(f"Random baseline: {baseline:.4f}")
-print(f"EI: {ll_EI:.4f}")
-print(f"PI: {ll_PI:.4f}")
-print(f"UCB: {ll_UCB:.4f}")
+            for beta in betas:
+                beta = 5.0   # try different values later (or loop over betas)
+
+                xh, yh = float(point[0]), float(point[1])
+                idx_h = xy_to_flat_index(xh, yh)
+
+                P_pi  = softmax(beta * acquisition_values_pi)
+                P_ei  = softmax(beta * acquisition_values_ei)
+                P_ucb = softmax(beta * acquisition_values_gp_ucb)
+
+                logp_pi  = float(np.log(P_pi[idx_h]  + 1e-12))
+                logp_ei  = float(np.log(P_ei[idx_h]  + 1e-12))
+                logp_ucb = float(np.log(P_ucb[idx_h] + 1e-12))
+
+                # BO-optimal points for each acquisition
+                idx_PI  = np.argmax(acquisition_values_pi)
+                idx_EI  = np.argmax(acquisition_values_ei)
+                idx_UCB = np.argmax(acquisition_values_gp_ucb)
+
+                xt_PI  = Xtest[idx_PI]
+                xt_EI  = Xtest[idx_EI]
+                xt_UCB = Xtest[idx_UCB]
+
+                results.append({
+                    "person": int(i),
+                    "step": int(k),
+                    "beta": float(beta),
+
+                    "human_xy": [xh, yh],
+                    "human_z": float(point[2]),
+                    "idx_h": int(idx_h),
+
+                    "bo_PI_xy": xt_PI.tolist(),
+                    "bo_EI_xy": xt_EI.tolist(),
+                    "bo_UCB_xy": xt_UCB.tolist(),
+
+                    "logp_PI": logp_pi,
+                    "logp_EI": logp_ei,
+                    "logp_UCB": logp_ucb,
+
+                    "current_best": float(current_best),
+                })
+
+                X_sample.append(list(point[:2]))
+                y_sample.append(point[2])
+                current_best = np.max(y_sample)
+
+    # Sum and average log probabilities
+    T = len(results)
+
+    ll_EI = sum(r["logp_EI"] for r in results) / T
+    ll_PI = sum(r["logp_PI"] for r in results) / T
+    ll_UCB = sum(r["logp_UCB"] for r in results) / T
+    baseline = np.log(1/10000)
+    print(f"Results for xi={xi}, kappa={kappa}:")
+    print(f"Random baseline: {baseline:.4f}")
+    print(f"EI: {ll_EI:.4f}")
+    print(f"PI: {ll_PI:.4f}")
+    print(f"UCB: {ll_UCB:.4f}")
+    final_results[(xi, kappa)] = {'Random': baseline, 'EI': ll_EI, 'PI': ll_PI, 'UCB': ll_UCB}
+
+import json
+with open('final_results.json', 'w') as f:
+    json.dump(final_results, f, indent=4)
