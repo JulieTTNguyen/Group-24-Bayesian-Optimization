@@ -144,4 +144,4 @@ for xi,kappa in zip(xis,kappas):
 
 import json
 with open('final_results.json', 'w') as f:
-    json.dump(final_results, f, indent=4)
+    json.dump({str(k): v for k, v in final_results.items()}, f, indent=4)
