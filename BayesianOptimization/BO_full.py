@@ -84,7 +84,7 @@ for xi in xis:
         final_results[key] = []
 
         results = []
-        for i, person in enumerate(xyz[:]):
+        for i, person in enumerate(xyz[:50]):
             # First 4 points
             print(f"Running person {i}, xi={xi}, kappa={kappa}")
             x0 = [[x0[0],x0[1]] for x0 in person[:4]]
