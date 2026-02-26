@@ -158,6 +158,7 @@ for xi in xis:
             ll_EI = sum(r["logp_EI"] for r in beta_results) / T
             ll_PI = sum(r["logp_PI"] for r in beta_results) / T
             ll_UCB = sum(r["logp_UCB"] for r in beta_results) / T
+            mean_logp = float(np.mean([ll_EI, ll_PI, ll_UCB]))
 
             entry = {
                 "beta": beta,
@@ -165,6 +166,7 @@ for xi in xis:
                 "ll_PI": float(ll_PI),
                 "ll_EI": float(ll_EI),
                 "ll_UCB": float(ll_UCB),
+                "mean_logp": mean_logp,
             }
 
             final_results[key].append(entry)
@@ -176,7 +178,8 @@ for xi in xis:
                 "beta": float(beta),
                 "ll_EI": float(ll_EI),
                 "ll_PI": float(ll_PI),
-                "ll_UCB": float(ll_UCB)
+                "ll_UCB": float(ll_UCB),
+                "mean_logp": mean_logp
             })
 
 wandb.finish()
