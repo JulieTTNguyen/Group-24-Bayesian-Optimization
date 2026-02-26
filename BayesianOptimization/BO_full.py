@@ -84,7 +84,7 @@ for xi in xis:
         final_results[key] = []
 
         results = []
-        for i, person in enumerate(xyz[:50]):
+        for i, person in enumerate(xyz[:]):
             # First 4 points
             print(f"Running person {i}, xi={xi}, kappa={kappa}")
             x0 = [[x0[0],x0[1]] for x0 in person[:4]]
@@ -206,3 +206,6 @@ print("\n===== FINAL SUMMARY =====")
 print("Best Hyperparameters")
 for k, v in best.items():
     print(f"{k}: {v}")
+
+with open("best_hyperparameters.json", "w") as f:
+    json.dump(best, f, indent=4)
