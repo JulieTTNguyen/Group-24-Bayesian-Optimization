@@ -75,35 +75,31 @@ betas = [0.01, 0.1, 0.3, 1, 2, 5, 10, 20, 50, 100] # for softmax temperature
 xis = [0, 0.001, 0.01, 0.05, 0.1,0.5] # for EI and PI
 kappas = [0.1, 0.3, 0.5, 1, 2, 5] # for UCB
     
-final_results={}
 
-for xi in xis:
-    for kappa in kappas:
+results = []
+for i, person in enumerate(xyz[:100]):
+    # First 4 points
+    print(f"Running person {i}")
+    x0 = [[x0[0],x0[1]] for x0 in person[:4]]
+    objective = -gmm_model(params[i], xx, yy)            
+    X_sample =  x0
+    y_sample = [f_objective((xy[0],xy[1])) for xy in x0]
+    current_best = np.max(y_sample)
 
-        key = f"xi={xi}_kappa={kappa}"
-        final_results[key] = []
+    for k, point in enumerate(person[4:19]):
+        lengthscale, output_variance, noise_variance = optimize_GP_hyperparams(X_sample, y_sample, 500, 5e-4, prior_mean, prior_std)
+        mu, covariance = fit_predictive_GP(X_sample, y_sample, Xtest, lengthscale, output_variance, noise_variance)
+        std = np.sqrt(np.diag(covariance))
 
-        results = []
-        for i, person in enumerate(xyz[:50]):
-            # First 4 points
-            print(f"Running person {i}, xi={xi}, kappa={kappa}")
-            x0 = [[x0[0],x0[1]] for x0 in person[:4]]
-            objective = -gmm_model(params[i], xx, yy)            
-            X_sample =  x0
-            y_sample = [f_objective((xy[0],xy[1])) for xy in x0]
-            current_best = np.max(y_sample)
+        xh, yh = float(point[0]), float(point[1])
+        idx_h = xy_to_flat_index(xh, yh)
+        
+        for xi in xis:
+            acquisition_values_pi = probability_of_improvement(current_best,  mu.flatten(), std, xi)
+            acquisition_values_ei = expected_improvement(current_best,  mu.flatten(), std, xi)
 
-            for k, point in enumerate(person[4:19]):
-                lengthscale, output_variance, noise_variance = optimize_GP_hyperparams(X_sample, y_sample, 500, 5e-4, prior_mean, prior_std)
-                mu, covariance = fit_predictive_GP(X_sample, y_sample, Xtest, lengthscale, output_variance, noise_variance)
-                std = np.sqrt(np.diag(covariance))
-
-                acquisition_values_pi = probability_of_improvement(current_best,  mu.flatten(), std, xi)
-                acquisition_values_ei = expected_improvement(current_best,  mu.flatten(), std, xi)
+            for kappa in kappas:
                 acquisition_values_gp_ucb = GP_UCB_original(mu.flatten(), std, kappa)
-
-                xh, yh = float(point[0]), float(point[1])
-                idx_h = xy_to_flat_index(xh, yh)
 
                 for beta in betas:
                     P_pi  = softmax(beta * acquisition_values_pi)
@@ -149,15 +145,26 @@ for xi in xis:
                 y_sample.append(point[2])
                 current_best = np.max(y_sample)
 
-        # Average log probabilities per beta
-        baseline = np.log(1 / 10000)
+
+# --------------------------------------------------
+# Aggregate likelihoods across all people
+# --------------------------------------------------
+final_results = {}
+baseline = np.log(1 / 10000)
+for xi in xis:
+    for kappa in kappas:
+        key = f"xi={xi}_kappa={kappa}"
+        final_results[key] = []
 
         for beta in betas:
-            beta_results = [r for r in results if r["beta"] == beta]
-            T = len(beta_results)
-            ll_EI = sum(r["logp_EI"] for r in beta_results) / T
-            ll_PI = sum(r["logp_PI"] for r in beta_results) / T
-            ll_UCB = sum(r["logp_UCB"] for r in beta_results) / T
+            subset = [ 
+                r for r in results
+                if r["xi"] == xi and r["kappa"] == kappa and r["beta"] == beta # All persons that have this specific subset of hyperparameters
+            ]
+            # Average log-likelihood across all people
+            ll_EI = sum(r["logp_EI"] for r in subset) / len(subset)
+            ll_PI = sum(r["logp_PI"] for r in subset) / len(subset)
+            ll_UCB = sum(r["logp_UCB"] for r in subset) / len(subset)
             mean_logp = float(np.mean([ll_EI, ll_PI, ll_UCB]))
 
             entry = {
@@ -189,26 +196,31 @@ with open('final_results.json', 'w') as f:
     json.dump(final_results, f, indent=4)
 
 
+
+# --------------------------------------------------
+# Find global best
+# --------------------------------------------------
 # --- Final summary of best acquisition function and hyperparameters ---
-best_ll = -np.inf
-best = {}
+# Pick the acquisition function and hyperparameters that maximize log-likelihood across all persons.
+best = {"log_likelihood": -np.inf}
 
 for key, vals in final_results.items():
     for v in vals:
-        for func in ["ll_PI", "ll_EI", "ll_UCB"]:
-            if v[func] > best_ll:
-                best_ll = v[func]
+        for acq in ["PI", "EI", "UCB"]:
+            ll = v[f"ll_{acq}"]
+            if ll > best["log_likelihood"]:
                 best = {
-                    "acquisition": func.replace("ll_", ""),
+                    "acquisition": acq,
                     "xi_kappa": key,
                     "beta": v["beta"],
-                    "log_likelihood": v[func],
+                    "log_likelihood": ll,
                 }
+
+
+with open("best_hyperparameters.json", "w") as f:
+    json.dump(best, f, indent=4)
 
 print("\n===== FINAL SUMMARY =====")
 print("Best Hyperparameters")
 for k, v in best.items():
     print(f"{k}: {v}")
-
-with open("best_hyperparameters.json", "w") as f:
-    json.dump(best, f, indent=4)
