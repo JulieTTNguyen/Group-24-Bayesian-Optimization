@@ -140,10 +140,11 @@ for i, person in enumerate(xyz[:100]):
 
                         "current_best": float(current_best),
                     })
+        X_sample.append(list(point[:2]))
+        y_sample.append(point[2])
+        current_best = max(current_best, point[2])
 
-                X_sample.append(list(point[:2]))
-                y_sample.append(point[2])
-                current_best = np.max(y_sample)
+        
 
 
 # --------------------------------------------------
